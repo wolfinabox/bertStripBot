@@ -11,7 +11,7 @@ import re
 
 #===============USER SET VARIABLES===============#
 # This is the client ID of the bot account
-clientID = 'NDczOTEzNjQ4NDgyMzUzMTgy.DkI2Hg.A0l4b0hRu0vIwNfkxfPtt35wWW4'
+clientID = 'id_here'
 # This is the default command prefix
 #defaultCommandPrefix = 'bert!'
 #================================================#
@@ -19,7 +19,7 @@ client = discord.Client()
 
 #================GLOBAL VARIABLES================#
 #Font sourced from https://www.1001fonts.com/crimson-font.html
-fontPath='Crimson-Bold.ttf'
+fontPath='Crimson-Roman.ttf'
 #================================================#
 
 #===============Classes===============#
@@ -32,6 +32,14 @@ class CommUsage(Exception):
 
 #===============FUNCTIONS===============#
 
+def loadID():
+    try:
+        file = open('token.txt')
+        loaded_id = file.readline()
+        global clientID
+        clientID = loaded_id 
+    except FileNotFoundError:
+        return
 
 def getBetween(string, left, right):
     try:
@@ -151,9 +159,10 @@ async def on_message(message):
 
     # Start Bot
 try:
+    loadID()
     client.run(clientID)
 except discord.LoginFailure as e:
-    print('Please edit this file, and set the \'clientID\' variable to the token of your bot,\nfrom https://discordapp.com/developers/applications/me.\n')
+    print('Please create a file named "token.txt" next to this file, and place the token of your bot,\nfrom https://discordapp.com/developers/applications/me, inside it.\n')
 
 except Exception as e:
     print('I can\'t connect to the Discord servers right now, sorry! :(\nCheck your internet connection, and then https://twitter.com/discordapp for downtimes,\n and then try again later.')
