@@ -3,7 +3,8 @@ import asyncio  # Needed for discord
 import os
 import sys
 from PIL import Image
-from PIL import ImageFilter
+from PIL import ImageFont
+from PIL import ImageDraw
 import urllib3.request
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 import re
@@ -15,6 +16,11 @@ clientID = 'NDczOTEzNjQ4NDgyMzUzMTgy.DkI2Hg.A0l4b0hRu0vIwNfkxfPtt35wWW4'
 #defaultCommandPrefix = 'bert!'
 #================================================#
 client = discord.Client()
+
+#================GLOBAL VARIABLES================#
+#Font sourced from https://www.1001fonts.com/crimson-font.html
+fontPath='Crimson-Bold.ttf'
+#================================================#
 
 #===============Classes===============#
 
@@ -29,7 +35,7 @@ class CommUsage(Exception):
 
 def getBetween(string, left, right):
     try:
-        return re.search(left+'(.*)'+right, string).group(0)
+        return re.search(left+'(.*)'+right, string).group(0)[1:-1]
     except Exception:
         return None
 
@@ -46,10 +52,53 @@ def saveImage(attachment):
     resp.release_conn()
     return os.path.realpath(f.name)
 
+def textWrap(text,font,width):
+    lines=[]
+    if font.getsize(text)[0]<=width:
+        lines.append(text)
+        return lines
+    words=text.split(' ')
+    i=0
+    while i<len(words):
+        line=''
+        while i<len(words) and font.getsize(line+words[i])[0]<=width:
+            line+=(words[i]+' ')
+            i+=1
+        if not line:
+            line=words[i]
+            i+=1
+        lines.append(line)
+    return lines
+
+def makeStrip(im,text):
+    image=Image.open(im)
+    
+    width,height=image.size
+
+    #Wrap the text
+    #Best looking ratio of image-width to text font is 970/50 (or, 19.4)
+    fontSize=width/19.4
+    font=ImageFont.truetype(fontPath,int(fontSize))
+    lines=textWrap(text,font,width-(width*0.04))
+    lineHeight=font.getsize(text)[1]
+
+    #Create blank whitespace under image
+    totalLinesHeight=lineHeight*(len(lines)+1)
+    tempImage=Image.new(image.mode,(width,height+totalLinesHeight),(255,255,255))
+    tempImage.paste(image)
+    image=tempImage
+    width,height=image.size
+    y=(height-totalLinesHeight)+lineHeight/2
+    #Draw lines
+    draw=ImageDraw.Draw(image)
+    for line in lines:
+        x=(width/2)-(font.getsize(line)[0]/2)
+        draw.text((x,y),line,fill=(0,0,0),font=font)
+        y+=lineHeight
+    image.save(im)
+    
 #===============DISCORD CODE===============#
 # When we start up
-
-
 @client.event
 async def on_ready():
     # Header Info
@@ -77,6 +126,9 @@ async def on_message(message):
         #Get caption
         caption = getBetween(message.content, '"', '"')
         image=None
+        if not caption and len(message.attachments) < 1:
+            raise CommUsage('`To make a Bertstrip, attach an image to your message,\nand put what you\'d like the caption to be in quotes.`')
+
         if not caption:
             raise CommUsage(
                 '`Sorry, there was no caption in that message.\nPlease include a caption enclosed in quotes ("text")`')
@@ -85,7 +137,14 @@ async def on_message(message):
         if len(message.attachments) < 1:
                 raise CommUsage('`Sorry, there were no attached images in that message.\nPlease attach an image to make into a BertStrip`')
         image=saveImage(message.attachments[0])
-        await client.send_message(message.channel, caption)
+
+        #Edit image
+        makeStrip(image,caption)
+
+        #Send
+        await client.send_message(message.channel, "Here's your Bertstrip, <@"+message.author.id+">:")
+        await client.send_file(message.channel,image)
+        os.remove(image)
 
     except CommUsage as e:
         await client.send_message(message.channel, e.sterror)
