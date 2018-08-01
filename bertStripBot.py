@@ -35,7 +35,7 @@ class CommUsage(Exception):
 def loadID():
     try:
         file = open('token.txt')
-        loaded_id = file.readline()
+        loaded_id = file.readline().strip()
         global clientID
         clientID = loaded_id 
     except FileNotFoundError:
@@ -165,4 +165,5 @@ except discord.LoginFailure as e:
     print('Please create a file named "token.txt" next to this file, and place the token of your bot,\nfrom https://discordapp.com/developers/applications/me, inside it.\n')
 
 except Exception as e:
-    print('I can\'t connect to the Discord servers right now, sorry! :(\nCheck your internet connection, and then https://twitter.com/discordapp for downtimes,\n and then try again later.')
+    print('I can\'t connect to the Discord servers right now, sorry! :(\nCheck your internet connection, and then https://twitter.com/discordapp for downtimes,\n and then try again later.'
+    +'\n[ERROR: '+str(e)+']\n')
