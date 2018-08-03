@@ -5,21 +5,25 @@ import sys
 from PIL import Image
 from PIL import ImageFont
 from PIL import ImageDraw
-import urllib3.request
+import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+import pyimgur
 import re
 
-#===============USER SET VARIABLES===============#
-# This is the client ID of the bot account
-clientID = 'id_here'
-# This is the default command prefix
-#defaultCommandPrefix = 'bert!'
-#================================================#
-client = discord.Client()
+
+
 
 #================GLOBAL VARIABLES================#
+client = discord.Client()
+clientID = None
+imgurID=None
 #Font sourced from https://www.1001fonts.com/crimson-font.html
 fontPath='Crimson-Roman.ttf'
+helpText='''
+`To make a Bertstrip, attach an image to your message,and put what you\'d like the caption to be in quotes.`
+`Optional Options:`
+`-i (--imgur): Upload image to Imgur (otherwise sent in Discord chat)`
+'''
 #================================================#
 
 #===============Classes===============#
@@ -35,16 +39,18 @@ class CommUsage(Exception):
 def loadID():
     try:
         file = open('token.txt')
-        loaded_id = file.readline().strip()
         global clientID
-        clientID = loaded_id 
+        clientID = file.readline().strip()
+        global imgurID
+        imgurID=file.readline().strip()
+        return True
     except FileNotFoundError:
-        return
+        return False
 
 def getBetween(string, left, right):
     try:
-        return re.search(left+'(.*)'+right, string).group(0)[1:-1]
-    except Exception:
+        return re.search(left+'(?s)(.*?)'+right, string).group(0)[1:-1]
+    except Exception as e:
         return None
 
 def saveImage(attachment):
@@ -62,10 +68,10 @@ def saveImage(attachment):
 
 def textWrap(text,font,width):
     lines=[]
-    if font.getsize(text)[0]<=width:
-        lines.append(text)
+    words=text.split()
+    if font.getsize(' '.join(words))[0]<=width:
+        lines.append(' '.join(words))
         return lines
-    words=text.split(' ')
     i=0
     while i<len(words):
         line=''
@@ -88,15 +94,15 @@ def makeStrip(im,text):
     fontSize=width/19.4
     font=ImageFont.truetype(fontPath,int(fontSize))
     lines=textWrap(text,font,width-(width*0.04))
-    lineHeight=font.getsize(text)[1]
+    lineHeight=font.getsize("hg")[1]
 
     #Create blank whitespace under image
-    totalLinesHeight=lineHeight*(len(lines)+1)
+    totalLinesHeight=int(lineHeight*(len(lines))+lineHeight/2)
     tempImage=Image.new(image.mode,(width,height+totalLinesHeight),(255,255,255))
     tempImage.paste(image)
     image=tempImage
     width,height=image.size
-    y=(height-totalLinesHeight)+lineHeight/2
+    y=(height-totalLinesHeight)+lineHeight/4
     #Draw lines
     draw=ImageDraw.Draw(image)
     for line in lines:
@@ -104,6 +110,11 @@ def makeStrip(im,text):
         draw.text((x,y),line,fill=(0,0,0),font=font)
         y+=lineHeight
     image.save(im)
+    
+def imgurUpload(im):
+    imgur=pyimgur.Imgur(imgurID)
+    upl_image=imgur.upload_image(im,title="bertstrip")
+    return upl_image.link
     
 #===============DISCORD CODE===============#
 # When we start up
@@ -135,7 +146,7 @@ async def on_message(message):
         caption = getBetween(message.content, '"', '"')
         image=None
         if not caption and len(message.attachments) < 1:
-            raise CommUsage('`To make a Bertstrip, attach an image to your message,\nand put what you\'d like the caption to be in quotes.`')
+            raise CommUsage(helpText)
 
         if not caption:
             raise CommUsage(
@@ -148,10 +159,18 @@ async def on_message(message):
 
         #Edit image
         makeStrip(image,caption)
+        
+        #Options
+        PATTERN = re.compile(r'''((?:[^ "']|"[^"]*"|'[^']*')+)''')
+        strings=PATTERN.split(message.content)[1::2]
 
         #Send
         await client.send_message(message.channel, "Here's your Bertstrip, <@"+message.author.id+">:")
-        await client.send_file(message.channel,image)
+        if ("-i" in strings or "--imgur" in strings):
+            link=imgurUpload(image)
+            await client.send_message(message.channel,link)
+        else:
+            await client.send_file(message.channel,image)
         os.remove(image)
 
     except CommUsage as e:
@@ -159,7 +178,7 @@ async def on_message(message):
 
     # Start Bot
 try:
-    loadID()
+    if not loadID():raise discord.LoginFailure()
     client.run(clientID)
 except discord.LoginFailure as e:
     print('Please create a file named "token.txt" next to this file, and place the token of your bot,\nfrom https://discordapp.com/developers/applications/me, inside it.\n')
